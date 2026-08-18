@@ -1,0 +1,7 @@
+.next
+out
+.npm-cache
+.env
+node_modules
+.DS_Store
+tsconfig.tsbuildinfo

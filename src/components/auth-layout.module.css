@@ -1,0 +1,105 @@
+.authLayout {
+  grid-template-columns: 1fr;
+  background: #fff;
+}
+
+.authLayout :global(.sb-login-panel) {
+  display: none;
+}
+
+.authLayout :global(.sb-brand[data-light='true']) {
+  color: #172033;
+}
+
+.authLayout :global(.sb-brand[data-light='true'] .sb-brand-mark::before) {
+  background: var(--sb-primary);
+}
+
+.authLayout :global(.sb-brand[data-light='true'] .sb-brand-mark::after) {
+  background: #fff;
+  border-color: var(--sb-primary);
+}
+
+.authLayout :global(.sb-login-copy) {
+  align-self: center;
+  max-width: 440px;
+}
+
+.authLayout :global(.sb-login-copy .sb-page-eyebrow) {
+  color: var(--sb-primary);
+}
+
+.authLayout :global(.sb-login-copy h1) {
+  color: #172033;
+  font-size: clamp(34px, 3.5vw, 46px);
+  line-height: 1.08;
+}
+
+.authLayout :global(.sb-login-copy p:last-child) {
+  margin-top: 16px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.authLayout :global(.sb-login-features) {
+  gap: 10px 18px;
+  padding-top: 24px;
+  border-top: 1px solid var(--sb-border);
+  color: #667085;
+  font-size: 12px;
+}
+
+.authLayout :global(.sb-login-feature) {
+  gap: 7px;
+}
+
+.authLayout :global(.sb-login-feature svg) {
+  width: 15px;
+  color: var(--sb-primary);
+}
+
+.authLayout :global(.sb-login-form-wrap) {
+  min-height: 100vh;
+  place-items: center;
+  padding: 48px clamp(32px, 7vw, 112px);
+  background: #fff;
+}
+
+.authLayout :global(.sb-login-form) {
+  width: min(100%, 430px);
+}
+
+.authLayout :global(.sb-login-form h2) {
+  color: #172033;
+  font-size: clamp(28px, 2.5vw, 34px);
+  letter-spacing: -0.04em;
+}
+
+.authLayout :global(.sb-login-form > p:not(.sb-page-eyebrow)) {
+  margin-top: 10px;
+  color: #667085;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.authLayout :global(.sb-login-fields) {
+  gap: 18px;
+  margin-top: 32px;
+}
+
+.authLayout :global(.sb-login-form .sb-button) {
+  min-height: 46px;
+}
+
+.authLayout :global(.sb-qr) {
+  margin: 24px 0;
+  border-radius: 10px;
+}
+
+@media (max-width: 820px) {
+  .authLayout :global(.sb-login-form-wrap) {
+    min-height: 100vh;
+    padding: 48px 28px 56px;
+  }
+}
