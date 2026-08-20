@@ -127,7 +127,14 @@ export function InviteDialog({ kind }: { kind: InvitationKind }) {
         },
       )
       const queued = result.invitations.filter((item) => item.status === 'queued').length
-      setMessage(`${queued} invitation${queued === 1 ? '' : 's'} queued.`)
+      const limited = result.invitations.filter(
+        (item) => item.status === 'resend-limit-reached',
+      ).length
+      let message = `${queued} invitation${queued === 1 ? '' : 's'} queued.`
+      if (limited) {
+        message += ` ${limited} skipped — max 3 resends within 24 hours.`
+      }
+      setMessage(message)
       setEmails([])
       setDraft('')
       setEditingIndex(null)
