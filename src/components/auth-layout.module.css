@@ -103,3 +103,13 @@
     padding: 48px 28px 56px;
   }
 }
+
+@media (max-width: 480px) {
+  .authLayout :global(.sb-login-form-wrap) {
+    padding: 36px 18px 44px;
+  }
+
+  .authLayout :global(.sb-login-form h2) {
+    overflow-wrap: anywhere;
+  }
+}

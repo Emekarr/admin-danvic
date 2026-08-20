@@ -14,8 +14,8 @@ import {
   type AuthorDirectoryEntry,
   type StudentDirectoryEntry,
 } from '@danvic/api-client'
-import { Badge, Input, PageHeader } from '@danvic/ui'
-import { Search } from 'lucide-react'
+import { Badge, PageHeader } from '@danvic/ui'
+import { DirectorySearch } from './directory-search'
 import { InviteDialog } from './invite-dialog'
 import { InviteHistory } from './invite-history'
 import { SecurityForm } from './security-form'
@@ -91,11 +91,11 @@ export function AdminDirectory({ kind }: { kind: DirectoryKind }) {
             <h2>Current {label.toLocaleLowerCase()}</h2>
             <p>{visible.length}{query ? ` of ${items.length}` : ''} total</p>
           </div>
-          <label className="ad-search-control">
-            <Search aria-hidden="true" />
-            <span className="sr-only">Search {label.toLocaleLowerCase()}</span>
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${label.toLocaleLowerCase()}`} />
-          </label>
+          <DirectorySearch
+            query={query}
+            onQueryChange={setQuery}
+            placeholder={`Search ${label.toLocaleLowerCase()}`}
+          />
         </div>
         <DataState loading={loading} error={error} />
         {!loading && !error && (visible.length ? (
