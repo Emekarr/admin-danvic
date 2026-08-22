@@ -16,6 +16,11 @@ const timeAgo = (iso: string): string => {
   return `${Math.round(hours / 24)}d ago`
 }
 
+const notificationHref = (link: string): string => {
+  const legacyCourse = link.match(/^\/courses\/([^/?#]+)$/)
+  return legacyCourse ? `/courses/detail?id=${encodeURIComponent(legacyCourse[1] ?? '')}` : link
+}
+
 export function NotificationCenter() {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -85,7 +90,7 @@ export function NotificationCenter() {
         )
       }
       setOpen(false)
-      if (item.link) router.push(item.link)
+      if (item.link) router.push(notificationHref(item.link))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Notification could not be updated')
     }
