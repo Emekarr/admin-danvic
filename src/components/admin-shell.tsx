@@ -10,6 +10,7 @@ import {
   Files,
   History,
   Library,
+  MailPlus,
   Users,
 } from 'lucide-react'
 import { NotificationCenter } from './notifications-center'
@@ -63,7 +64,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
       { label: 'Question bank', href: '/content-assessment/question-bank', icon: Library },
     ] },
     { label: 'Version Control', items: [{ label: 'Versions', href: '/content-assessment/versions', icon: History }] },
-    { label: 'Tutors', items: [{ label: 'Tutor overview', href: '/content-assessment/tutors/overview', icon: Users }] },
+    { label: 'Tutors', items: [
+      { label: 'Tutor overview', href: '/content-assessment/tutors/overview', icon: Users },
+      { label: 'Invite tutor', href: '/invitations#invite', icon: MailPlus },
+    ] },
   ]
 
   return (

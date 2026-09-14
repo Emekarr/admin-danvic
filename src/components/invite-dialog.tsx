@@ -9,7 +9,7 @@ type InvitationKind = 'admin' | 'author' | 'student'
 
 const labels: Record<InvitationKind, { singular: string; plural: string }> = {
   admin: { singular: 'admin', plural: 'admins' },
-  author: { singular: 'author', plural: 'authors' },
+  author: { singular: 'tutor', plural: 'tutors' },
   student: { singular: 'student', plural: 'students' },
 }
 
