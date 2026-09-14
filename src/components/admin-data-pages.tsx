@@ -12,6 +12,8 @@ import {
   type AdminProfile,
   type AdminStudentDetail,
   type AuthorDirectoryEntry,
+  type ContentReview,
+  type ContentVersion,
   type StudentDirectoryEntry,
 } from '@danvic/api-client'
 import { Badge, PageHeader } from '@danvic/ui'
@@ -19,6 +21,7 @@ import { DirectorySearch } from './directory-search'
 import { InviteDialog } from './invite-dialog'
 import { InviteHistory } from './invite-history'
 import { SecurityForm } from './security-form'
+import { MfaPolicyPanel } from './security-policy'
 
 type DirectoryKind = 'author' | 'student' | 'admin' | 'course'
 
@@ -143,7 +146,7 @@ export function AdminSecurityPage() {
   useEffect(() => {
     void apiFetch<{ admin: AdminProfile }>('/api/auth/me').then(({ admin: profile }) => setAdmin(profile)).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Could not load security settings.'))
   }, [])
-  return <div className="ad-settings-page"><PageHeader title="Security settings" />{admin ? <SecurityForm admin={admin} /> : <DataState loading={!error} error={error} />}</div>
+  return <div className="ad-settings-page"><PageHeader title="Security settings" />{admin ? <><SecurityForm admin={admin} /><MfaPolicyPanel /></> : <DataState loading={!error} error={error} />}</div>
 }
 
 export function AdminDetail({ kind }: { kind: Exclude<DirectoryKind, 'admin'> }) {
@@ -151,11 +154,19 @@ export function AdminDetail({ kind }: { kind: Exclude<DirectoryKind, 'admin'> })
   const id = params.get('id')
   const [detail, setDetail] = useState<AdminAuthorDetail | AdminStudentDetail | AdminCourseDetail | null>(null)
   const [error, setError] = useState('')
+  const [courseGovernance, setCourseGovernance] = useState<CourseGovernanceDetail | null>(null)
+  const [courseGovernanceError, setCourseGovernanceError] = useState('')
   useEffect(() => {
     if (!id) return
     void apiFetch<AdminAuthorDetail | AdminStudentDetail | AdminCourseDetail>(`${endpointByKind[kind]}/${encodeURIComponent(id)}`)
       .then(setDetail)
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : `Could not load this ${kind}.`))
+  }, [id, kind])
+  useEffect(() => {
+    if (kind !== 'course' || !id) return
+    void apiFetch<CourseGovernanceDetail>(`/api/content-assessment/content/${encodeURIComponent(id)}`)
+      .then(setCourseGovernance)
+      .catch((cause: unknown) => setCourseGovernanceError(cause instanceof Error ? cause.message : 'Could not load course review history.'))
   }, [id, kind])
   const back = `/${kind}s`
   if (!detail) {
@@ -163,7 +174,7 @@ export function AdminDetail({ kind }: { kind: Exclude<DirectoryKind, 'admin'> })
     return <div className="ad-directory-page"><PageHeader title={`${labelByKind[kind]} details`} /><DataState loading={!message} error={message} /><Link href={back} className="sb-button sb-button--secondary">Back to {labelByKind[kind].toLocaleLowerCase()}</Link></div>
   }
   if ('course' in detail) {
-    return <div className="ad-course-detail"><Link className="ad-course-back" href="/courses">Back to courses</Link><PageHeader title={detail.course.name} /><section className="ad-section"><p>{detail.course.type === 'live' ? 'Live class' : 'Premade course'} · {detail.course.durationMinutes} minutes</p><h2>Modules</h2>{detail.modules.length ? <ol>{detail.modules.map((module) => <li key={module.id}><strong>{module.title}</strong><p>{module.content}</p></li>)}</ol> : <p>No modules yet.</p>}</section></div>
+    return <div className="ad-course-detail"><Link className="ad-course-back" href="/courses">Back to courses</Link><PageHeader title={detail.course.name} description={`${detail.course.type === 'live' ? 'Live class' : 'Premade course'} · ${detail.course.durationMinutes} minutes`} actions={courseGovernance ? <Badge dot tone={courseStatusTone(courseGovernance.content)}>{courseStatus(courseGovernance.content)}</Badge> : null} /><section className="ad-section ad-section--plain"><CourseGovernanceSummary governance={courseGovernance} error={courseGovernanceError} /></section><section className="ad-section"><h2>Modules</h2>{detail.modules.length ? <ol>{detail.modules.map((module) => <li key={module.id}><strong>{module.title}</strong><p>{module.content}</p></li>)}</ol> : <p>No modules yet.</p>}</section></div>
   }
   if ('student' in detail) {
     return <div className="ad-directory-page"><PageHeader title={`${detail.student.firstName} ${detail.student.lastName}`} /><p>{detail.student.email}</p><section className="ad-section"><h2>Learning record</h2><p>{detail.courses.length} course enrollment{detail.courses.length === 1 ? '' : 's'}.</p></section></div>
@@ -171,3 +182,53 @@ export function AdminDetail({ kind }: { kind: Exclude<DirectoryKind, 'admin'> })
   const authorDetail = detail as AdminAuthorDetail
   return <div className="ad-directory-page"><PageHeader title={`${authorDetail.author.firstName} ${authorDetail.author.lastName}`} /><p>{authorDetail.author.email}</p><section className="ad-section"><h2>Courses</h2><p>{authorDetail.courses.length} course{authorDetail.courses.length === 1 ? '' : 's'} created.</p></section></div>
 }
+
+type CourseGovernanceDetail = {
+  content: {
+    id: string
+    reviewStatus: string
+    publicationStatus: string
+    currentVersion: ContentVersion | null
+    submittedAt: string | null
+    approvedAt: string | null
+    publishedAt: string | null
+    updatedAt: string
+  }
+  versions: ContentVersion[]
+  reviews: ContentReview[]
+}
+
+const courseStatus = (content: CourseGovernanceDetail['content']) =>
+  content.publicationStatus === 'archived' ? 'Archived' : content.publicationStatus === 'published' ? 'Published' : content.reviewStatus === 'approved' ? 'Approved' : content.reviewStatus === 'pending_review' ? 'Pending review' : content.reviewStatus === 'needs_revision' ? 'Needs revision' : content.reviewStatus === 'rejected' ? 'Rejected' : 'Draft'
+
+const courseStatusTone = (content: CourseGovernanceDetail['content']) => {
+  const status = courseStatus(content)
+  return status === 'Published' || status === 'Approved' ? 'green' : status === 'Rejected' ? 'red' : status === 'Needs revision' || status === 'Pending review' ? 'amber' : 'blue'
+}
+
+function CourseGovernanceSummary({ governance, error }: { governance: CourseGovernanceDetail | null; error: string }) {
+  if (error && !governance) return <p className="ad-empty-line">Version history and review details are unavailable: {error}</p>
+  if (!governance) return <p className="ad-empty-line">Loading course version history…</p>
+  const { content } = governance
+  return <>
+    <div className="ad-detail-grid"><div><span className="ad-directory-card-label">Current status</span><strong>{courseStatus(content)}</strong></div><div><span className="ad-directory-card-label">Current version</span><strong>{content.currentVersion?.label ?? 'No version yet'}</strong></div><div><span className="ad-directory-card-label">Submitted</span><strong>{dateOrDash(content.submittedAt)}</strong></div><div><span className="ad-directory-card-label">Approved</span><strong>{dateOrDash(content.approvedAt)}</strong></div><div><span className="ad-directory-card-label">Published</span><strong>{dateOrDash(content.publishedAt)}</strong></div><div><span className="ad-directory-card-label">Last updated</span><strong>{dateOrDash(content.updatedAt)}</strong></div></div>
+    <CourseReviewChecklist reviews={governance.reviews} />
+    <div className="ad-section-heading ad-course-history-heading"><div><h2>Version history</h2><p>Drafts, reviewed versions and published versions remain auditable.</p></div><Link className="ad-text-link" href={`/content-assessment/content/${encodeURIComponent(content.id)}`}>Open review workspace</Link></div>
+    <CourseVersionTable versions={governance.versions} />
+    <div className="ad-section-heading ad-course-history-heading"><div><h2>Review dates</h2><p>Every decision is retained with its reviewer and date.</p></div></div>
+    {governance.reviews.length ? <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Version</th><th>Decision</th><th>Reviewed on</th><th>Reviewer</th><th>Summary</th></tr></thead><tbody>{governance.reviews.map((review) => <tr key={review.id}><td>{governance.versions.find((version) => version.id === review.versionId)?.label ?? '—'}</td><td><Badge>{review.decision.replace(/_/g, ' ')}</Badge></td><td>{dateOrDash(review.createdAt)}</td><td>{review.reviewer.firstName} {review.reviewer.lastName}</td><td>{review.summary || '—'}</td></tr>)}</tbody></table></div> : <p className="ad-empty-line">No course reviews yet.</p>}
+  </>
+}
+
+function CourseReviewChecklist({ reviews }: { reviews: ContentReview[] }) {
+  const latest = reviews[0]
+  const criteria: Array<[string, string]> = [['technical_accuracy', 'Technical accuracy'], ['brand_consistency', 'Brand consistency'], ['copyright_ip', 'Copyright / IP'], ['safety_regulatory', 'Safety & regulatory'], ['content_quality', 'Content quality']]
+  return <div className="ad-course-checklist"><div><h2>Content review checklist</h2><p>Review criteria belong to the course and are tracked here as checklist items.</p></div><div className="ad-checklist-grid">{criteria.map(([key, label]) => <label className="ad-checkbox-field" key={key}><input type="checkbox" disabled checked={Boolean(latest?.criteria.some((criterion) => criterion.criterion === key && criterion.score != null))} readOnly /><span><strong>{label}</strong><small>{latest ? `Reviewed ${dateOrDash(latest.createdAt)}` : 'Not reviewed'}</small></span></label>)}</div></div>
+}
+
+function CourseVersionTable({ versions }: { versions: ContentVersion[] }) {
+  if (!versions.length) return <p className="ad-empty-line">No course versions yet.</p>
+  return <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Version</th><th>Status</th><th>Created by</th><th>Drafted on</th><th>Published on</th><th>Changes</th></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>{version.label || `v${version.number}`}</td><td><Badge dot tone={version.state === 'published' ? 'green' : version.state === 'draft' ? 'blue' : version.state === 'superseded' ? 'red' : 'violet'}>{version.state}</Badge></td><td>{version.createdBy.firstName} {version.createdBy.lastName}</td><td>{dateOrDash(version.createdAt)}</td><td>{dateOrDash(version.publishedAt)}</td><td>{version.changeSummary || '—'}</td></tr>)}</tbody></table></div>
+}
+
+const dateOrDash = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-NG') : '—'

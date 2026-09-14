@@ -146,7 +146,7 @@ export function SecurityForm({ admin }: { admin: AdminProfile }) {
                 <p>
                   {enabled
                     ? 'A one-time code from your authenticator app is required whenever you sign in.'
-                    : 'Set up an authenticator app to protect this account. Two-factor is required when restricted permissions are enabled.'}
+                    : 'Set up an authenticator app to protect this account. Two-factor authentication is required for every administrator.'}
                 </p>
               </div>
             </div>
@@ -166,7 +166,7 @@ export function SecurityForm({ admin }: { admin: AdminProfile }) {
               ) : (
                 <>
                   <li>
-                    <Check aria-hidden="true" /> Recommended for every administrator
+                    <Check aria-hidden="true" /> Required for every administrator
                   </li>
                   <li>
                     <Check aria-hidden="true" /> Required for the super admin

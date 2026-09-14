@@ -20,7 +20,7 @@ import styles from './auth-layout.module.css'
 
 const features = [
   { icon: ShieldCheck, label: 'Permission-gated operations' },
-  { icon: KeyRound, label: 'Compulsory superadmin 2FA' },
+  { icon: KeyRound, label: 'Required MFA for every administrator' },
   { icon: LockKeyhole, label: 'Every action is audited' },
 ]
 
@@ -219,6 +219,9 @@ export function ResetPasswordForm() {
 
 export function TwoFactorForm({ setup = false }: { setup?: boolean }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const requestedNext = searchParams.get('next')
+  const next = requestedNext?.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : ''
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [qrCode, setQrCode] = useState('')
@@ -265,7 +268,7 @@ export function TwoFactorForm({ setup = false }: { setup?: boolean }) {
               setup ? '/api/auth/2fa/confirm' : '/api/auth/2fa/verify',
               { method: 'POST', body: JSON.stringify({ code: data.get('code') }) },
             )
-            router.push(result.next)
+            router.push(next || result.next)
             router.refresh()
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : 'Verification failed')
@@ -364,7 +367,7 @@ export function AcceptInvitationForm({ token }: { token?: string }) {
       >
         <p className="sb-page-eyebrow">Create account</p>
         <h2>Accept administrator invitation</h2>
-        <p>Two-factor authentication can be enabled after sign-in.</p>
+        <p>Two-factor authentication is required for every administrator account.</p>
         <div className="sb-login-fields">
           <div className="sb-form-grid">
             <Field label="First name" required>
