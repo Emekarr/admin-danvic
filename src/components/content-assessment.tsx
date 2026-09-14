@@ -322,6 +322,10 @@ export function ContentReviewHub() {
   return <div className="ad-directory-page"><PageHeader title="Content review" description="Choose the quality lens for the review queue or open the audit trail." /><section className="ad-section ad-section--plain"><div className="ad-policy-actions">{Object.entries(reviewCriterionForSlug).map(([slug, criterion]) => <Link className="sb-button sb-button--secondary" href={`/content-assessment/reviews/${slug}`} key={slug}>{criterionLabels[criterion]}</Link>)}<Link className="sb-button sb-button--secondary" href="/content-assessment/reviews/history">Review history</Link></div></section></div>
 }
 
+export function VersionControlHub() {
+  return <div className="ad-directory-page"><PageHeader title="Version control" description="Open the appropriate version workspace without crowding the sidebar." /><section className="ad-section ad-section--plain"><div className="ad-policy-actions"><Link className="sb-button sb-button--secondary" href="/content-assessment/versions/published">Published versions</Link><Link className="sb-button sb-button--secondary" href="/content-assessment/versions/drafts">Draft versions</Link><Link className="sb-button sb-button--secondary" href="/content-assessment/versions/history">Version history</Link><Link className="sb-button sb-button--secondary" href="/content-assessment/versions/controlled-updates">Controlled updates</Link><Link className="sb-button sb-button--secondary" href="/content-assessment/review-dates">Review dates</Link></div></section></div>
+}
+
 export function ContentReviewPage({ section }: { section: string }) {
   const history = section === 'history'
   const criterion = reviewCriterionForSlug[section]
@@ -356,6 +360,7 @@ export function ContentAssessmentRoute({ slug }: { slug: string[] }) {
   }
   if (slug[0] === 'assessments') return !slug[1] || slug[1] === 'all' ? <AssessmentOverview /> : <ContentAssessmentList kind="assessment" bucket={slug[1]} />
   if (slug[0] === 'question-bank') return <ContentAssessmentList kind="assessment" bucket="question-bank" />
+  if (slug[0] === 'versions' && !slug[1]) return <VersionControlHub />
   if (slug[0] === 'versions') return <ContentAssessmentList kind="versions" bucket={slug[1] ?? 'published'} />
   if (slug[0] === 'reviews' && !slug[1]) return <ContentReviewHub />
   if (slug[0] === 'reviews' && slug[1] && (slug[1] === 'history' || slug[1] in reviewCriterionForSlug)) return <ContentReviewPage section={slug[1]} />

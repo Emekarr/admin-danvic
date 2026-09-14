@@ -6,9 +6,12 @@ import { apiFetch, type AdminProfile } from '@danvic/api-client'
 import { AppShell, type NavigationGroup } from '@danvic/ui'
 import {
   Archive,
+  ClipboardCheck,
   FileCheck2,
   Files,
+  History,
   Library,
+  Users,
 } from 'lucide-react'
 import { NotificationCenter } from './notifications-center'
 import { SessionRenewal } from './session-renewal'
@@ -60,6 +63,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
       { label: 'Assessment overview', href: '/content-assessment/assessments', icon: Files },
       { label: 'Question bank', href: '/content-assessment/question-bank', icon: Library },
     ] },
+    { label: 'Content Review', items: [{ label: 'Review workspace', href: '/content-assessment/reviews', icon: ClipboardCheck }] },
+    { label: 'Version Control', items: [{ label: 'Versions', href: '/content-assessment/versions', icon: History }] },
+    { label: 'Tutors', items: [{ label: 'Tutor overview', href: '/content-assessment/tutors/overview', icon: Users }] },
   ]
 
   return (
