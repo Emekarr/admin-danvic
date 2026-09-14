@@ -63,6 +63,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
       { label: 'Assessment overview', href: '/content-assessment/assessments', icon: Files },
       { label: 'Question bank', href: '/content-assessment/question-bank', icon: Library },
     ] },
+    { label: 'Content Review', items: [
+      { label: 'Technical accuracy', href: '/content-assessment/reviews/technical-accuracy', icon: FileCheck2 },
+      { label: 'Brand consistency', href: '/content-assessment/reviews/brand-consistency', icon: FileCheck2 },
+      { label: 'Copyright / IP', href: '/content-assessment/reviews/copyright-ip', icon: FileCheck2 },
+      { label: 'Safety & regulatory', href: '/content-assessment/reviews/safety-regulatory', icon: FileCheck2 },
+      { label: 'Content quality', href: '/content-assessment/reviews/content-quality', icon: FileCheck2 },
+      { label: 'Review history', href: '/content-assessment/reviews/history', icon: History },
+    ] },
     { label: 'Version Control', items: [{ label: 'Versions', href: '/content-assessment/versions', icon: History }] },
     { label: 'Tutors', items: [
       { label: 'Tutor overview', href: '/content-assessment/tutors/overview', icon: Users },
