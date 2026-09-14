@@ -83,6 +83,7 @@ export function ContentAssessmentOverview() {
       { label: 'Approved', value: data.content.approved, href: '/content-assessment/content/approved' },
       { label: 'Rejected', value: data.content.rejected, href: '/content-assessment/content/rejected' },
     ]} /></section>
+    <section className="ad-section"><div className="ad-section-heading"><div><h2>Governance tools</h2><p>Open detailed workspaces only when you need them.</p></div></div><div className="ad-policy-actions"><Link className="sb-button sb-button--secondary" href="/content-assessment/reviews">Content review</Link><Link className="sb-button sb-button--secondary" href="/content-assessment/versions/history">Version control</Link><Link className="sb-button sb-button--secondary" href="/content-assessment/tutors/overview">Tutors</Link><Link className="sb-button sb-button--secondary" href="/content-assessment/review-dates">Review dates</Link></div></section>
     <section className="ad-section"><div className="ad-section-heading"><div><h2>Assessment</h2><p>Review queue and lifecycle totals.</p></div><Link className="ad-text-link" href="/content-assessment/assessments">View assessments</Link></div><StatCards entries={[
       { label: 'Total assessment', value: assessment.total ?? 0 }, { label: 'Pending review', value: assessment.pendingReview ?? 0 }, { label: 'Approved', value: assessment.approved ?? 0 }, { label: 'Rejected', value: assessment.rejected ?? 0 },
     ]} /></section>
@@ -95,21 +96,30 @@ export function ContentAssessmentOverview() {
 export function AssessmentOverview() {
   const [data, setData] = useState<Overview | null>(null)
   const [error, setError] = useState<unknown>(null)
+  const [search, setSearch] = useState('')
+  const [type, setType] = useState('')
+  const [status, setStatus] = useState('')
   useEffect(() => { void apiFetch<Overview>('/api/content-assessment/overview').then(setData).catch(setError) }, [])
+  const inventoryPath = useMemo(() => {
+    const params = new URLSearchParams({ page: '1', limit: '50' })
+    if (search) params.set('search', search)
+    if (type) params.set('kind', type)
+    if (status) params.set('status', status)
+    return `/api/content-assessment/assessments?${params}`
+  }, [search, status, type])
+  const inventory = usePaginated(inventoryPath)
   if (error) return <ErrorState error={error} />
   if (!data) return <p className="ad-empty-line">Loading assessment overview…</p>
   const assessment = data.assessments ?? {}
-  const assessmentItems = (data.recentContent ?? []).filter((item) => ['assignment', 'quiz', 'exam', 'question'].includes(item.type))
   return <div className="ad-directory-page">
     <PageHeader title="Assessment overview" description="Monitor assignments, quizzes, exams and questions across every course." />
     <section className="ad-section ad-section--plain"><StatCards entries={[
       { label: 'Total assessments', value: assessment.total ?? 0 },
-      { label: 'Pending review', value: assessment.pendingReview ?? 0, href: '/content-assessment/assessments/pending' },
+      { label: 'Pending review', value: assessment.pendingReview ?? 0 },
       { label: 'Approved', value: assessment.approved ?? 0 },
       { label: 'Rejected', value: assessment.rejected ?? 0 },
     ]} /></section>
-    <section className="ad-section"><div className="ad-section-heading"><div><h2>Assessment inventory</h2><p>Use a type-specific view to review each assessment kind.</p></div></div><StatCards entries={(['assignment', 'quiz', 'exam', 'question'] as AssessmentKind[]).map((kind) => ({ label: kind === 'question' ? 'Question bank' : `${kind[0]?.toUpperCase() ?? ''}${kind.slice(1)}s`, value: data.assessmentBreakdown?.[kind] ?? 0, href: kind === 'question' ? '/content-assessment/question-bank' : `/content-assessment/assessments/${kind}s` }))} /></section>
-    <section className="ad-section"><div className="ad-section-heading"><div><h2>Recent assessment content</h2><p>Latest assessment submissions and decisions.</p></div><Link className="ad-text-link" href="/content-assessment/assessments/assignments">Open assessment list</Link></div><ContentTable items={assessmentItems} empty="No assessment content yet." /></section>
+    <section className="ad-section"><div className="ad-section-heading"><div><h2>Assessment inventory</h2><p>Use filters to switch between assignments, quizzes, exams and every review state.</p></div><ExportButton path={`${inventoryPath}&format=csv`} /></div><div className="ad-list-controls"><Input aria-label="Search assessments" placeholder="Search assessment or tutor" value={search} onChange={(event) => setSearch(event.target.value)} /><FilterDropdown label="Type" value={type} onChange={setType} options={[{ value: '', label: 'All assessment types' }, { value: 'assignment', label: 'Assignments' }, { value: 'quiz', label: 'Quizzes' }, { value: 'exam', label: 'Exams' }, { value: 'question', label: 'Questions' }]} id="assessment-overview-type" /><FilterDropdown label="Review status" value={status} onChange={setStatus} options={[{ value: '', label: 'All statuses' }, { value: 'pending_review', label: 'Pending review' }, { value: 'approved', label: 'Approved' }, { value: 'needs_revision', label: 'Needs revision' }, { value: 'rejected', label: 'Rejected' }, { value: 'published', label: 'Published' }, { value: 'archived', label: 'Archived' }]} id="assessment-overview-status" /></div>{inventory.error ? <ErrorState error={inventory.error} /> : inventory.result ? <ContentTable items={inventory.result.items} empty="No assessment content matches these filters." /> : <p className="ad-empty-line">Loading assessment inventory…</p>}</section>
   </div>
 }
 
@@ -160,7 +170,7 @@ export function ContentAssessmentList({ kind, bucket = 'all' }: { kind: 'content
   const { result, error } = usePaginated(path)
   const heading = kind === 'content' ? `${bucket === 'all' ? 'All' : bucket.replace(/-/g, ' ')} content` : kind === 'versions' ? `${bucket.replace(/-/g, ' ')} versions` : bucket === 'question-bank' ? 'Question bank' : `${bucket.replace(/-/g, ' ')} assessments`
   const contentItems = result?.items.map((item) => bucket === 'question-bank' ? ((item as unknown as { governance?: ReviewableContent }).governance ?? item) : item) ?? []
-  return <div className="ad-directory-page"><PageHeader title={heading} description={contentId ? 'Immutable version history for the selected content record.' : 'Search, filter, export and open the full assessment record.'} actions={<ExportButton path={`${path}&format=csv`} />} /><section className="ad-section ad-section--plain"><div className="ad-list-controls"><Input aria-label="Search" placeholder="Search title or tutor" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /><FilterDropdown label="Type" value={type} onChange={(value) => { setType(value); setPage(1) }} options={[{ value: '', label: 'All types' }, { value: 'lesson', label: 'Lesson' }, { value: 'video', label: 'Video' }, { value: 'document', label: 'Document' }, { value: 'assignment', label: 'Assignment' }, { value: 'quiz', label: 'Quiz' }, { value: 'exam', label: 'Exam' }, { value: 'question', label: 'Question' }]} id="content-type-filter" /><FilterDropdown label="Tutor" value={authorId} onChange={(value) => { setAuthorId(value); setPage(1) }} options={[{ value: '', label: 'All tutors' }, ...(result?.filters.authors ?? []).map((author) => ({ value: author.id, label: `${author.firstName} ${author.lastName}` }))]} id="content-tutor-filter" /><FilterDropdown label="Status" value={reviewStatus} onChange={(value) => { setReviewStatus(value); setPage(1) }} options={[{ value: '', label: 'All statuses' }, ...(result?.filters.statuses ?? []).map((value) => ({ value, label: value.replace(/_/g, ' ') }))]} id="content-status-filter" /></div>{error ? <ErrorState error={error} /> : result ? kind === 'versions' ? <VersionTable items={result.items as unknown as ContentVersion[]} /> : <ContentTable items={contentItems} empty="No content matches these filters." /> : <p className="ad-empty-line">Loading records…</p>}{result?.page ? <div className="ad-table-pagination"><p className="ad-table-meta">Page {result.page.number} of {result.page.totalPages} · {result.page.total} records</p><div><Button variant="ghost" disabled={result.page.number <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button><Button variant="ghost" disabled={result.page.number >= result.page.totalPages} onClick={() => setPage((value) => value + 1)}>Next</Button></div></div> : null}</section></div>
+  return <div className="ad-directory-page"><PageHeader title={heading} description={contentId ? 'Immutable version history for the selected content record.' : 'Search, filter, export and open the full assessment record.'} actions={<><ExportButton path={`${path}&format=csv`} />{kind === 'content' && bucket === 'all' ? <Link className="sb-button sb-button--secondary" href="/content-assessment">More tools</Link> : null}</>} /><section className="ad-section ad-section--plain"><div className="ad-list-controls"><Input aria-label="Search" placeholder="Search title or tutor" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /><FilterDropdown label="Type" value={type} onChange={(value) => { setType(value); setPage(1) }} options={[{ value: '', label: 'All types' }, { value: 'lesson', label: 'Lesson' }, { value: 'video', label: 'Video' }, { value: 'document', label: 'Document' }, { value: 'assignment', label: 'Assignment' }, { value: 'quiz', label: 'Quiz' }, { value: 'exam', label: 'Exam' }, { value: 'question', label: 'Question' }]} id="content-type-filter" /><FilterDropdown label="Tutor" value={authorId} onChange={(value) => { setAuthorId(value); setPage(1) }} options={[{ value: '', label: 'All tutors' }, ...(result?.filters.authors ?? []).map((author) => ({ value: author.id, label: `${author.firstName} ${author.lastName}` }))]} id="content-tutor-filter" /><FilterDropdown label="Status" value={reviewStatus} onChange={(value) => { setReviewStatus(value); setPage(1) }} options={[{ value: '', label: 'All statuses' }, ...(result?.filters.statuses ?? []).map((value) => ({ value, label: value.replace(/_/g, ' ') }))]} id="content-status-filter" /></div>{error ? <ErrorState error={error} /> : result ? kind === 'versions' ? <VersionTable items={result.items as unknown as ContentVersion[]} /> : <ContentTable items={contentItems} empty="No content matches these filters." /> : <p className="ad-empty-line">Loading records…</p>}{result?.page ? <div className="ad-table-pagination"><p className="ad-table-meta">Page {result.page.number} of {result.page.totalPages} · {result.page.total} records</p><div><Button variant="ghost" disabled={result.page.number <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button><Button variant="ghost" disabled={result.page.number >= result.page.totalPages} onClick={() => setPage((value) => value + 1)}>Next</Button></div></div> : null}</section></div>
 }
 function VersionTable({ items }: { items: ContentVersion[] }) {
   if (!items.length) return <p className="ad-empty-line">No versions match these filters.</p>
@@ -308,6 +318,10 @@ const reviewCriterionForSlug: Record<string, ReviewCriterion> = {
 
 type ReviewHistoryRow = ContentReview & { content?: ReviewableContent | null }
 
+export function ContentReviewHub() {
+  return <div className="ad-directory-page"><PageHeader title="Content review" description="Choose the quality lens for the review queue or open the audit trail." /><section className="ad-section ad-section--plain"><div className="ad-policy-actions">{Object.entries(reviewCriterionForSlug).map(([slug, criterion]) => <Link className="sb-button sb-button--secondary" href={`/content-assessment/reviews/${slug}`} key={slug}>{criterionLabels[criterion]}</Link>)}<Link className="sb-button sb-button--secondary" href="/content-assessment/reviews/history">Review history</Link></div></section></div>
+}
+
 export function ContentReviewPage({ section }: { section: string }) {
   const history = section === 'history'
   const criterion = reviewCriterionForSlug[section]
@@ -343,6 +357,7 @@ export function ContentAssessmentRoute({ slug }: { slug: string[] }) {
   if (slug[0] === 'assessments') return !slug[1] || slug[1] === 'all' ? <AssessmentOverview /> : <ContentAssessmentList kind="assessment" bucket={slug[1]} />
   if (slug[0] === 'question-bank') return <ContentAssessmentList kind="assessment" bucket="question-bank" />
   if (slug[0] === 'versions') return <ContentAssessmentList kind="versions" bucket={slug[1] ?? 'published'} />
+  if (slug[0] === 'reviews' && !slug[1]) return <ContentReviewHub />
   if (slug[0] === 'reviews' && slug[1] && (slug[1] === 'history' || slug[1] in reviewCriterionForSlug)) return <ContentReviewPage section={slug[1]} />
   if (slug[0] === 'review-dates') return <ReviewDatesPage />
   if (slug[0] === 'tutors') {
