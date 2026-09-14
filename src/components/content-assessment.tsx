@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { MoreHorizontal } from 'lucide-react'
 import { apiFetch, apiUrl, type ContentReview, type ContentVersion, type PaginatedResult, type ReviewCriterion, type ReviewableContent } from '@danvic/api-client'
 import { Badge, Button, CustomDropdown, Field, FormMessage, Input, PageHeader } from '@danvic/ui'
 
@@ -19,6 +20,7 @@ type AssessmentKind = 'assignment' | 'quiz' | 'exam' | 'question'
 type Detail = {
   content: ReviewableContent
   versions: ContentVersion[]
+  versionSnapshots?: Record<string, unknown>
   reviews: ContentReview[]
   currentPayload?: unknown
   reviewSchedule?: { reviewAt: string; reviewer?: { firstName: string; lastName: string }; status: string } | null
@@ -45,11 +47,11 @@ function ErrorState({ error }: { error: unknown }) {
   return <p className="ad-empty-line" data-tone="error">{code === 'FORBIDDEN' ? 'You do not have permission to access this workspace.' : message}</p>
 }
 
-function ExportButton({ path }: { path: string }) {
+function ExportButton({ path, disabled = false }: { path: string; disabled?: boolean }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   return <span>
-    <Button variant="secondary" busy={busy} onClick={async () => {
+    <Button variant="secondary" busy={busy} disabled={disabled} onClick={async () => {
       setBusy(true); setError('')
       try {
         const response = await fetch(apiUrl(path), { credentials: 'include' })
@@ -99,14 +101,16 @@ export function AssessmentOverview() {
   const [search, setSearch] = useState('')
   const [type, setType] = useState('')
   const [status, setStatus] = useState('')
+  const [authorId, setAuthorId] = useState('')
   useEffect(() => { void apiFetch<Overview>('/api/content-assessment/overview').then(setData).catch(setError) }, [])
   const inventoryPath = useMemo(() => {
     const params = new URLSearchParams({ page: '1', limit: '50' })
     if (search) params.set('search', search)
     if (type) params.set('kind', type)
     if (status) params.set('status', status)
+    if (authorId) params.set('authorId', authorId)
     return `/api/content-assessment/assessments?${params}`
-  }, [search, status, type])
+  }, [authorId, search, status, type])
   const inventory = usePaginated(inventoryPath)
   if (error) return <ErrorState error={error} />
   if (!data) return <p className="ad-empty-line">Loading assessment overview…</p>
@@ -119,13 +123,13 @@ export function AssessmentOverview() {
       { label: 'Approved', value: assessment.approved ?? 0 },
       { label: 'Rejected', value: assessment.rejected ?? 0 },
     ]} /></section>
-    <section className="ad-section"><div className="ad-section-heading"><div><h2>Assessment inventory</h2><p>Use filters to switch between assignments, quizzes, exams and every review state.</p></div><ExportButton path={`${inventoryPath}&format=csv`} /></div><div className="ad-list-controls"><Input aria-label="Search assessments" placeholder="Search assessment or tutor" value={search} onChange={(event) => setSearch(event.target.value)} /><FilterDropdown label="Type" value={type} onChange={setType} options={[{ value: '', label: 'All assessment types' }, { value: 'assignment', label: 'Assignments' }, { value: 'quiz', label: 'Quizzes' }, { value: 'exam', label: 'Exams' }, { value: 'question', label: 'Questions' }]} id="assessment-overview-type" /><FilterDropdown label="Review status" value={status} onChange={setStatus} options={[{ value: '', label: 'All statuses' }, { value: 'pending_review', label: 'Pending review' }, { value: 'approved', label: 'Approved' }, { value: 'needs_revision', label: 'Needs revision' }, { value: 'rejected', label: 'Rejected' }, { value: 'published', label: 'Published' }, { value: 'archived', label: 'Archived' }]} id="assessment-overview-status" /></div>{inventory.error ? <ErrorState error={inventory.error} /> : inventory.result ? <ContentTable items={inventory.result.items} empty="No assessment content matches these filters." /> : <p className="ad-empty-line">Loading assessment inventory…</p>}</section>
+    <section className="ad-section"><div className="ad-section-heading"><div><h2>Assessment inventory</h2><p>Use filters to switch between assignments, quizzes, exams and every review state.</p></div><ExportButton path={`${inventoryPath}&format=csv`} disabled /></div><div className="ad-list-controls"><Input aria-label="Search assessments" placeholder="Search assessment or tutor" value={search} onChange={(event) => setSearch(event.target.value)} /><FilterDropdown label="Status" value={status} onChange={setStatus} options={[{ value: '', label: 'All statuses' }, { value: 'pending_review', label: 'Pending review' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }]} id="assessment-overview-status" /><FilterDropdown label="Tutor" value={authorId} onChange={setAuthorId} options={[{ value: '', label: 'All tutors' }, ...(inventory.result?.filters.authors ?? []).map((author) => ({ value: author.id, label: `${author.firstName} ${author.lastName}` }))]} id="assessment-overview-tutor" /><FilterDropdown label="Type" value={type} onChange={setType} options={[{ value: '', label: 'All assessment types' }, { value: 'assignment', label: 'Assignments' }, { value: 'quiz', label: 'Quizzes' }, { value: 'exam', label: 'Exams' }, { value: 'question', label: 'Questions' }]} id="assessment-overview-type" /></div>{inventory.error ? <ErrorState error={inventory.error} /> : inventory.result ? <ContentTable items={inventory.result.items} empty="No assessment content matches these filters." /> : <p className="ad-empty-line">Loading assessment inventory…</p>}</section>
   </div>
 }
 
 function ContentTable({ items, empty, criterion }: { items: ReviewableContent[]; empty: string; criterion?: ReviewCriterion }) {
   if (!items.length) return <p className="ad-empty-line">{empty}</p>
-  return <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Tutor</th><th>Content</th><th>Type</th><th>Status</th><th>{criterion ? `${criterionLabels[criterion]} score` : 'Date'}</th></tr></thead><tbody>{items.map((item) => { const status = displayStatus(item); return <tr key={item.id}><td>{person(item.author)}</td><td><Link className="ad-table-link" href={`/content-assessment/content/${encodeURIComponent(item.id)}`}>{item.title}</Link></td><td>{item.type}</td><td><Badge dot tone={statusTone(status)}>{status}</Badge></td><td>{criterion ? item.reviewScores?.[criterion] ?? '—' : date(item.updatedAt)}</td></tr> })}</tbody></table></div>
+  return <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Tutor</th><th>Content</th><th>Type</th><th>Status</th><th>{criterion ? `${criterionLabels[criterion]} score` : 'Date'}</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{items.map((item) => { const status = displayStatus(item); return <tr key={item.id}><td>{person(item.author)}</td><td><Link className="ad-table-link" href={`/content-assessment/content/${encodeURIComponent(item.id)}`}>{item.title}</Link></td><td>{item.type}</td><td><Badge dot tone={statusTone(status)}>{status}</Badge></td><td>{criterion ? item.reviewScores?.[criterion] ?? '—' : date(item.updatedAt)}</td><td><details className="ad-row-actions"><summary aria-label={`Open actions for ${item.title}`}><MoreHorizontal size={18} /></summary><div><Link href={`/content-assessment/content/${encodeURIComponent(item.id)}`}>Content review</Link></div></details></td></tr> })}</tbody></table></div>
 }
 
 function usePaginated(path: string) {
@@ -146,14 +150,21 @@ export function ContentAssessmentList({ kind, bucket = 'all' }: { kind: 'content
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
   const [type, setType] = useState('')
+  const [attachment, setAttachment] = useState('')
   const [authorId, setAuthorId] = useState('')
   const [reviewStatus, setReviewStatus] = useState('')
   const [page, setPage] = useState(1)
   const contentId = kind === 'versions' ? searchParams.get('contentId') ?? '' : ''
+  const [summary, setSummary] = useState<Overview | null>(null)
+  useEffect(() => {
+    if (kind !== 'content' || bucket !== 'all') return
+    void apiFetch<Overview>('/api/content-assessment/overview').then(setSummary).catch(() => setSummary(null))
+  }, [bucket, kind])
   const path = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), limit: '25' })
     if (search) params.set('search', search)
     if (type) params.set('type', type)
+    if (attachment) params.set('attachment', attachment)
     if (authorId) params.set('authorId', authorId)
     if (reviewStatus) params.set('status', reviewStatus)
     if (contentId) params.set('contentId', contentId)
@@ -166,11 +177,12 @@ export function ContentAssessmentList({ kind, bucket = 'all' }: { kind: 'content
       return `/api/content-assessment/assessments?${params}`
     }
     return `/api/content-assessment/versions?bucket=${bucket === 'drafts' ? 'draft' : bucket === 'controlled-updates' ? 'controlled_update' : bucket}&${params}`
-  }, [authorId, bucket, contentId, kind, page, reviewStatus, search, type])
+  }, [attachment, authorId, bucket, contentId, kind, page, reviewStatus, search, type])
   const { result, error } = usePaginated(path)
   const heading = kind === 'content' ? `${bucket === 'all' ? 'All' : bucket.replace(/-/g, ' ')} content` : kind === 'versions' ? `${bucket.replace(/-/g, ' ')} versions` : bucket === 'question-bank' ? 'Question bank' : `${bucket.replace(/-/g, ' ')} assessments`
   const contentItems = result?.items.map((item) => bucket === 'question-bank' ? ((item as unknown as { governance?: ReviewableContent }).governance ?? item) : item) ?? []
-  return <div className="ad-directory-page"><PageHeader title={heading} description={contentId ? 'Immutable version history for the selected content record.' : 'Search, filter, export and open the full assessment record.'} actions={<><ExportButton path={`${path}&format=csv`} />{kind === 'content' && bucket === 'all' ? <Link className="sb-button sb-button--secondary" href="/content-assessment">More tools</Link> : null}</>} /><section className="ad-section ad-section--plain"><div className="ad-list-controls"><Input aria-label="Search" placeholder="Search title or tutor" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /><FilterDropdown label="Type" value={type} onChange={(value) => { setType(value); setPage(1) }} options={[{ value: '', label: 'All types' }, { value: 'lesson', label: 'Lesson' }, { value: 'video', label: 'Video' }, { value: 'document', label: 'Document' }, { value: 'assignment', label: 'Assignment' }, { value: 'quiz', label: 'Quiz' }, { value: 'exam', label: 'Exam' }, { value: 'question', label: 'Question' }]} id="content-type-filter" /><FilterDropdown label="Tutor" value={authorId} onChange={(value) => { setAuthorId(value); setPage(1) }} options={[{ value: '', label: 'All tutors' }, ...(result?.filters.authors ?? []).map((author) => ({ value: author.id, label: `${author.firstName} ${author.lastName}` }))]} id="content-tutor-filter" /><FilterDropdown label="Status" value={reviewStatus} onChange={(value) => { setReviewStatus(value); setPage(1) }} options={[{ value: '', label: 'All statuses' }, ...(result?.filters.statuses ?? []).map((value) => ({ value, label: value.replace(/_/g, ' ') }))]} id="content-status-filter" /></div>{error ? <ErrorState error={error} /> : result ? kind === 'versions' ? <VersionTable items={result.items as unknown as ContentVersion[]} /> : <ContentTable items={contentItems} empty="No content matches these filters." /> : <p className="ad-empty-line">Loading records…</p>}{result?.page ? <div className="ad-table-pagination"><p className="ad-table-meta">Page {result.page.number} of {result.page.totalPages} · {result.page.total} records</p><div><Button variant="ghost" disabled={result.page.number <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button><Button variant="ghost" disabled={result.page.number >= result.page.totalPages} onClick={() => setPage((value) => value + 1)}>Next</Button></div></div> : null}</section></div>
+  const isAllContent = kind === 'content' && bucket === 'all'
+  return <div className="ad-directory-page"><PageHeader title={heading} description={contentId ? 'Immutable version history for the selected content record.' : 'Search, filter, export and open the full assessment record.'} actions={<><ExportButton path={`${path}&format=csv`} disabled={kind === 'content' || kind === 'assessment'} />{isAllContent ? <Link className="sb-button sb-button--secondary" href="/content-assessment">More tools</Link> : null}</>} />{isAllContent && summary ? <section className="ad-section ad-section--plain"><StatCards entries={[{ label: 'Total content', value: summary.content.total }, { label: 'Pending review', value: summary.content.pendingReview }, { label: 'Approved', value: summary.content.approved }, { label: 'Rejected', value: summary.content.rejected }]} /></section> : null}<section className="ad-section ad-section--plain"><div className="ad-list-controls"><Input aria-label="Search" placeholder="Search title or tutor" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /><FilterDropdown label="Status" value={reviewStatus} onChange={(value) => { setReviewStatus(value); setPage(1) }} options={[{ value: '', label: 'All statuses' }, { value: 'pending_review', label: 'Pending review' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }, { value: 'archived', label: 'Archived' }]} id="content-status-filter" /><FilterDropdown label="Tutor" value={authorId} onChange={(value) => { setAuthorId(value); setPage(1) }} options={[{ value: '', label: 'All tutors' }, ...(result?.filters.authors ?? []).map((author) => ({ value: author.id, label: `${author.firstName} ${author.lastName}` }))]} id="content-tutor-filter" /><FilterDropdown label="Type" value={type} onChange={(value) => { setType(value); setPage(1) }} options={[{ value: '', label: 'All types' }, { value: 'lesson', label: 'Lesson' }, { value: 'video', label: 'Video' }, { value: 'document', label: 'Document' }, { value: 'assignment', label: 'Assignment' }, { value: 'quiz', label: 'Quiz' }, { value: 'exam', label: 'Exam' }, { value: 'question', label: 'Question' }]} id="content-type-filter" /><FilterDropdown label="Attachments" value={attachment} onChange={(value) => { setAttachment(value); setPage(1) }} options={[{ value: '', label: 'All attachments' }, { value: 'with', label: 'With attachment' }, { value: 'without', label: 'Without attachment' }]} id="content-attachment-filter" /></div>{error ? <ErrorState error={error} /> : result ? kind === 'versions' ? <VersionTable items={result.items as unknown as ContentVersion[]} /> : <ContentTable items={contentItems} empty="No content matches these filters." /> : <p className="ad-empty-line">Loading records…</p>}{result?.page ? <div className="ad-table-pagination"><p className="ad-table-meta">Page {result.page.number} of {result.page.totalPages} · {result.page.total} records</p><div><Button variant="ghost" disabled={result.page.number <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button><Button variant="ghost" disabled={result.page.number >= result.page.totalPages} onClick={() => setPage((value) => value + 1)}>Next</Button></div></div> : null}</section></div>
 }
 function VersionTable({ items }: { items: ContentVersion[] }) {
   if (!items.length) return <p className="ad-empty-line">No versions match these filters.</p>
@@ -186,7 +198,7 @@ export function ContentAssessmentDetail({ contentId }: { contentId: string }) {
   if (!detail) return <p className="ad-empty-line">Loading content detail…</p>
   const { content } = detail
   const refresh = () => { void apiFetch<Detail>(`/api/content-assessment/content/${encodeURIComponent(contentId)}`).then(setDetail).catch(setError) }
-  return <div className="ad-directory-page"><Link className="ad-course-back" href="/content-assessment/content">Back to content</Link><PageHeader title={content.title} description={`${person(content.author)} · ${content.type} · ${content.courseName ?? 'No course'}`} actions={<Badge dot tone={statusTone(displayStatus(content))}>{displayStatus(content)}</Badge>} /><section className="ad-section ad-section--plain"><div className="ad-detail-grid"><div><span className="ad-directory-card-label">Review status</span><strong>{displayStatus(content)}</strong></div><div><span className="ad-directory-card-label">Current version</span><strong>{content.currentVersion?.label || (content.currentVersion ? `v${content.currentVersion.number}` : 'No version')}</strong></div><div><span className="ad-directory-card-label">Submitted</span><strong>{date(content.submittedAt)}</strong></div><div><span className="ad-directory-card-label">Next review</span><strong>{date(content.nextReviewAt)}</strong></div></div>{content.rejectionReason ? <p className="ad-form-callout" data-tone="error">{content.rejectionReason}</p> : null}<ContentLifecycleActions detail={detail} onDone={(text) => { setMessage(text); refresh() }} /><ScheduleReviewForm contentId={contentId} onDone={(text) => { setMessage(text); refresh() }} /></section><ReviewDecisionForm key={detail.reviews[0]?.id ?? detail.content.currentVersion?.id ?? 'new'} detail={detail} onComplete={(text) => { setMessage(text); refresh() }} /><section className="ad-section"><div className="ad-section-heading"><div><h2>Version history</h2><p>Immutable history returned by the backend.</p></div><Link className="ad-text-link" href={`/content-assessment/versions/history?contentId=${encodeURIComponent(contentId)}`}>Open history</Link></div><VersionHistory versions={detail.versions} /></section><section className="ad-section"><div className="ad-section-heading"><div><h2>Prior reviews</h2><p>Decisions and criterion feedback.</p></div></div>{detail.reviews.length ? detail.reviews.map((review) => <article className="ad-review-record" key={review.id}><div><Badge>{review.decision.replace(/_/g, ' ')}</Badge><span>{person(review.reviewer)} · {date(review.createdAt)}</span></div><p>{review.summary}</p><ul>{review.criteria.map((item) => <li key={item.criterion}><strong>{criterionLabels[item.criterion]}</strong>: {item.score ?? '—'} · {item.comment ?? 'No comment'}</li>)}</ul></article>) : <p className="ad-empty-line">No reviews yet.</p>}</section>{detail.currentPayload ? <details className="ad-section"><summary>Current payload</summary><pre className="ad-code-block">{JSON.stringify(detail.currentPayload, null, 2)}</pre></details> : null}<FormMessage tone="success">{message}</FormMessage></div>
+  return <div className="ad-directory-page"><Link className="ad-course-back" href="/content-assessment/content">Back to content</Link><PageHeader title={content.title} description={`${person(content.author)} · ${content.type} · ${content.courseName ?? 'No course'}`} actions={<Badge dot tone={statusTone(displayStatus(content))}>{displayStatus(content)}</Badge>} /><section className="ad-section ad-section--plain"><div className="ad-detail-grid"><div><span className="ad-directory-card-label">Review status</span><strong>{displayStatus(content)}</strong></div><div><span className="ad-directory-card-label">Current version</span><strong>{content.currentVersion?.label || (content.currentVersion ? `v${content.currentVersion.number}` : 'No version')}</strong></div><div><span className="ad-directory-card-label">Submitted</span><strong>{date(content.submittedAt)}</strong></div><div><span className="ad-directory-card-label">Next review</span><strong>{date(content.nextReviewAt)}</strong></div></div>{content.rejectionReason ? <p className="ad-form-callout" data-tone="error">{content.rejectionReason}</p> : null}<ContentLifecycleActions detail={detail} onDone={(text) => { setMessage(text); refresh() }} /><ScheduleReviewForm contentId={contentId} onDone={(text) => { setMessage(text); refresh() }} /></section><ReviewDecisionForm key={detail.reviews[0]?.id ?? detail.content.currentVersion?.id ?? 'new'} detail={detail} onComplete={(text) => { setMessage(text); refresh() }} /><section className="ad-section"><div className="ad-section-heading"><div><h2>Version history</h2><p>Open each immutable snapshot to see exactly what changed between tutor submissions.</p></div><Link className="ad-text-link" href={`/content-assessment/versions/history?contentId=${encodeURIComponent(contentId)}`}>Open history</Link></div><VersionHistory versions={detail.versions} snapshots={detail.versionSnapshots ?? {}} /></section><section className="ad-section"><div className="ad-section-heading"><div><h2>Prior reviews</h2><p>Decisions and criterion feedback.</p></div></div>{detail.reviews.length ? detail.reviews.map((review) => <article className="ad-review-record" key={review.id}><div><Badge>{review.decision.replace(/_/g, ' ')}</Badge><span>{person(review.reviewer)} · {date(review.createdAt)}</span></div><p>{review.summary}</p><ul>{review.criteria.map((item) => <li key={item.criterion}><strong>{criterionLabels[item.criterion]}</strong>: {item.score ?? '—'} · {item.comment ?? 'No comment'}</li>)}</ul></article>) : <p className="ad-empty-line">No reviews yet.</p>}</section>{detail.currentPayload ? <details className="ad-section"><summary>Current payload</summary><pre className="ad-code-block">{JSON.stringify(detail.currentPayload, null, 2)}</pre></details> : null}<FormMessage tone="success">{message}</FormMessage></div>
 }
 
 function ScheduleReviewForm({ contentId, onDone }: { contentId: string; onDone: (message: string) => void }) {
@@ -215,27 +227,27 @@ function ReviewDecisionForm({ detail, onComplete }: { detail: Detail; onComplete
   const [summary, setSummary] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [criteria, setCriteria] = useState<Record<ReviewCriterion, { checked: boolean; comment: string }>>(() => {
+  const [criteria, setCriteria] = useState<Record<ReviewCriterion, { score: string; comment: string }>>(() => {
     const latest = detail.reviews[0]
     return Object.fromEntries(Object.keys(criterionLabels).map((criterion) => {
       const saved = latest?.criteria.find((item) => item.criterion === criterion)
-      return [criterion, { checked: saved?.score != null, comment: saved?.comment ?? '' }]
-    })) as Record<ReviewCriterion, { checked: boolean; comment: string }>
+      return [criterion, { score: saved?.score != null ? String(saved.score) : '', comment: saved?.comment ?? '' }]
+    })) as Record<ReviewCriterion, { score: string; comment: string }>
   })
   const submit = async () => {
     if ((decision === 'rejected' || decision === 'needs_revision') && !summary.trim()) { setError('A summary is required for rejected and needs-revision decisions.'); return }
     setBusy(true); setError('')
     try {
-      await apiFetch(`/api/content-assessment/content/${encodeURIComponent(detail.content.id)}/reviews`, { method: 'POST', body: JSON.stringify({ versionId: detail.content.currentVersion?.id, decision, summary, criteria: Object.fromEntries(Object.entries(criteria).map(([key, value]) => [key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()), { score: value.checked ? 100 : null, comment: value.comment || null }])), nextReviewAt: null }) })
+      await apiFetch(`/api/content-assessment/content/${encodeURIComponent(detail.content.id)}/reviews`, { method: 'POST', body: JSON.stringify({ versionId: detail.content.currentVersion?.id ?? null, decision, summary, criteria: Object.fromEntries(Object.entries(criteria).map(([key, value]) => [key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()), { score: value.score === '' ? null : Number(value.score), comment: value.comment || null }])), nextReviewAt: null }) })
       onComplete('Review decision submitted.')
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'The decision could not be submitted.') } finally { setBusy(false) }
   }
-  const canReview = detail.capabilities?.review !== false && detail.content.currentVersion != null && detail.content.reviewStatus !== 'approved' && detail.content.publicationStatus !== 'published'
-  return <section className="ad-section"><div className="ad-section-heading"><div><h2>Assess this version</h2><p>Decisions are immutable in review history; check each course quality criterion you reviewed.</p></div></div>{canReview ? <div className="ad-review-form"><label className="ad-review-decision"><span>Decision</span><CustomDropdown value={decision} onChange={(value) => setDecision(value as typeof decision)} options={[{ value: 'approved', label: 'Approved' }, { value: 'needs_revision', label: 'Needs revision' }, { value: 'rejected', label: 'Rejected' }]} id="review-decision" /></label><Field label="Summary" hint="Required for rejected and needs-revision decisions."><textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} /></Field><div className="ad-criteria-grid">{(Object.keys(criterionLabels) as ReviewCriterion[]).map((criterion) => <div className="ad-criterion-field" key={criterion}><label className="ad-checkbox-field"><input type="checkbox" checked={criteria[criterion].checked} onChange={(event) => setCriteria((current) => ({ ...current, [criterion]: { ...current[criterion], checked: event.target.checked } }))} /><span><strong>{criterionLabels[criterion]}</strong><small>Reviewed</small></span></label><textarea placeholder="Optional comment" rows={2} value={criteria[criterion].comment} onChange={(event) => setCriteria((current) => ({ ...current, [criterion]: { ...current[criterion], comment: event.target.value } }))} /></div>)}</div><Button busy={busy} onClick={() => void submit()}>Submit decision</Button><FormMessage>{error}</FormMessage></div> : <p className="ad-empty-line">This version cannot be reviewed from its current state.</p>}</section>
+  const canReview = detail.capabilities?.review !== false && detail.content.reviewStatus !== 'approved' && detail.content.publicationStatus !== 'published'
+  return <section className="ad-section"><div className="ad-section-heading"><div><h2>Assess this version</h2><p>Record a score and feedback for every criterion reviewed. Needs-revision feedback is emailed to the tutor.</p></div></div>{canReview ? <div className="ad-review-form"><label className="ad-review-decision"><span>Decision</span><CustomDropdown value={decision} onChange={(value) => setDecision(value as typeof decision)} options={[{ value: 'approved', label: 'Approved' }, { value: 'needs_revision', label: 'Needs revision' }, { value: 'rejected', label: 'Rejected' }]} id="review-decision" /></label><Field label="Feedback" hint="Required for rejected and needs-revision decisions; the tutor receives it by email for revisions."><textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} /></Field><div className="ad-criteria-grid">{(Object.keys(criterionLabels) as ReviewCriterion[]).map((criterion) => <div className="ad-criterion-field" key={criterion}><label><strong>{criterionLabels[criterion]}</strong><span className="sr-only"> score</span><Input type="number" min="0" max="100" placeholder="Score (0-100)" value={criteria[criterion].score} onChange={(event) => setCriteria((current) => ({ ...current, [criterion]: { ...current[criterion], score: event.target.value } }))} /></label><textarea placeholder="Feedback for this criterion" rows={2} value={criteria[criterion].comment} onChange={(event) => setCriteria((current) => ({ ...current, [criterion]: { ...current[criterion], comment: event.target.value } }))} /></div>)}</div><Button busy={busy} onClick={() => void submit()}>Submit decision</Button><FormMessage>{error}</FormMessage></div> : <p className="ad-empty-line">This version cannot be reviewed from its current state.</p>}</section>
 }
 
-function VersionHistory({ versions }: { versions: ContentVersion[] }) {
-  return versions.length ? <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Version</th><th>State</th><th>Created by</th><th>Date</th><th>Changes</th></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>{version.label || `v${version.number}`}</td><td>{version.state}</td><td>{person(version.createdBy)}</td><td>{date(version.updatedAt)}</td><td>{version.changeSummary ?? '—'}</td></tr>)}</tbody></table></div> : <p className="ad-empty-line">No version history.</p>
+function VersionHistory({ versions, snapshots = {} }: { versions: ContentVersion[]; snapshots?: Record<string, unknown> }) {
+  return versions.length ? <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Version</th><th>State</th><th>Created by</th><th>Date</th><th>Changes</th><th>Snapshot</th></tr></thead><tbody>{versions.map((version) => <tr key={version.id}><td>{version.label || `v${version.number}`}</td><td>{version.state}</td><td>{person(version.createdBy)}</td><td>{date(version.updatedAt)}</td><td>{version.changeSummary ?? '—'}</td><td>{snapshots[version.id] ? <details><summary>View change</summary><pre className="ad-code-block">{JSON.stringify(snapshots[version.id], null, 2)}</pre></details> : '—'}</td></tr>)}</tbody></table></div> : <p className="ad-empty-line">No version history.</p>
 }
 
 type TutorRow = Record<string, unknown> & { author?: Record<string, unknown> }
@@ -263,6 +275,13 @@ function TutorRows({ rows }: { rows: TutorRow[] }) {
   return <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Tutor</th><th>Courses</th><th>Content</th><th>Pending</th><th>Approved</th><th>Rejected</th><th>Requires updates</th><th>Last active</th></tr></thead><tbody>{rows.map((row, index) => { const id = tutorId(row); return <tr key={id || index}><td>{id ? <Link className="ad-table-link" href={`/content-assessment/tutors/${encodeURIComponent(id)}`}>{tutorName(row)}</Link> : tutorName(row)}</td><td>{tutorCount(row, 'courseCount')}</td><td>{tutorCount(row, 'contentCount')}</td><td>{tutorCount(row, 'pendingCount')}</td><td>{tutorCount(row, 'approvedCount')}</td><td>{tutorCount(row, 'rejectedCount')}</td><td>{tutorCount(row, 'needsRevisionCount')}</td><td>{date(typeof row.lastActive === 'string' ? row.lastActive : null)}</td></tr> })}</tbody></table></div>
 }
 
+function TutorReviewRows({ rows, segment }: { rows: TutorRow[]; segment: 'all' | 'pending' | 'approved' | 'rejected' }) {
+  if (!rows.length) return <p className="ad-empty-line">No tutors match this filter.</p>
+  const contentKey = segment === 'pending' ? 'pendingCount' : segment === 'approved' ? 'approvedCount' : segment === 'rejected' ? 'rejectedCount' : 'contentCount'
+  const contentLabel = segment === 'all' ? 'Content' : `${segment[0]?.toUpperCase() ?? ''}${segment.slice(1)} content`
+  return <div className="sb-table-wrap"><table className="sb-table"><thead><tr><th>Tutor</th><th>{contentLabel}</th><th>Last activity</th><th>Action</th></tr></thead><tbody>{rows.map((row, index) => { const id = tutorId(row); return <tr key={id || index}><td>{tutorName(row)}</td><td>{tutorCount(row, contentKey)}</td><td>{date(typeof row.lastActive === 'string' ? row.lastActive : null)}</td><td>{id ? <Link className="sb-button sb-button--secondary" href={`/content-assessment/tutors/${encodeURIComponent(id)}`}>Review</Link> : '—'}</td></tr> })}</tbody></table></div>
+}
+
 export function TutorAssessmentList({ segment = 'all' }: { segment?: string }) {
   const [data, setData] = useState<{ items?: TutorRow[] } | null>(null)
   const [error, setError] = useState<unknown>(null)
@@ -274,14 +293,14 @@ export function TutorAssessmentList({ segment = 'all' }: { segment?: string }) {
 }
 
 export function TutorAssessmentOverview() {
+  const [segment, setSegment] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [data, setData] = useState<{ items?: TutorRow[] } | null>(null)
   const [error, setError] = useState<unknown>(null)
-  useEffect(() => { void apiFetch<{ items?: TutorRow[] }>('/api/content-assessment/tutors?segment=all&page=1&limit=500').then(setData).catch(setError) }, [])
+  useEffect(() => { void apiFetch<{ items?: TutorRow[] }>(`/api/content-assessment/tutors?segment=${segment}&page=1&limit=500`).then(setData).catch(setError) }, [segment])
   if (error) return <ErrorState error={error} />
   if (!data) return <p className="ad-empty-line">Loading tutor overview…</p>
   const rows = data.items ?? []
-  const total = (key: string) => rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0)
-  return <div className="ad-directory-page"><PageHeader title="Tutor overview" description="See tutor activity and content outcomes at a glance." /><section className="ad-section ad-section--plain"><StatCards entries={[{ label: 'All tutors', value: rows.length, href: '/content-assessment/tutors' }, { label: 'Tutors with pending content', value: rows.filter((row) => Number(row.pendingCount ?? 0) > 0).length, href: '/content-assessment/tutors/pending' }, { label: 'Total content', value: total('contentCount') }, { label: 'Approved content', value: total('approvedCount') }, { label: 'Rejected content', value: total('rejectedCount') }, { label: 'Content requiring updates', value: total('needsRevisionCount'), href: '/content-assessment/tutors/requires-updates' }]} /></section><section className="ad-section"><div className="ad-section-heading"><div><h2>All tutor activity</h2><p>Review the content outcomes for every tutor.</p></div><Link className="ad-text-link" href="/content-assessment/tutors">View all tutors</Link></div><TutorRows rows={rows} /></section></div>
+  return <div className="ad-directory-page"><PageHeader title="Tutor overview" description="Filter tutors by the review status of their content, then open the tutor record to review it." /><section className="ad-section ad-section--plain"><div className="ad-list-controls"><FilterDropdown label="Content status" value={segment} onChange={(value) => setSegment(value as typeof segment)} options={[{ value: 'all', label: 'All tutors' }, { value: 'pending', label: 'Pending content' }, { value: 'approved', label: 'Approved content' }, { value: 'rejected', label: 'Rejected content' }]} id="tutor-overview-status" /></div><TutorReviewRows rows={rows} segment={segment} /></section></div>
 }
 
 export function TutorDetail({ authorId }: { authorId: string }) {

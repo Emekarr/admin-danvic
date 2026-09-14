@@ -352,9 +352,14 @@
 .ad-list-controls { margin-bottom: 20px; }
 .ad-list-controls .sb-input { max-width: 360px; }
 .ad-filter-control,
-.ad-review-decision { display: grid; gap: 6px; font-size: 12px; font-weight: 650; }
+.ad-review-decision { display: grid; gap: 6px; font-size: 12px; font-weight: 500; }
 .ad-filter-control { min-width: 150px; }
-.ad-filter-control .sb-custom-dropdown-trigger { min-height: 38px; padding-block: 5px; }
+.ad-filter-control .sb-custom-dropdown-trigger { min-height: 38px; padding-block: 5px; font-weight: 400; }
+.ad-row-actions { position: relative; }
+.ad-row-actions summary { display: grid; cursor: pointer; list-style: none; place-items: center; }
+.ad-row-actions summary::-webkit-details-marker { display: none; }
+.ad-row-actions > div { position: absolute; z-index: 2; right: 0; min-width: 132px; padding: 8px 10px; border: 1px solid var(--sb-border); border-radius: 8px; background: #fff; box-shadow: 0 8px 20px rgb(16 24 40 / 12%); }
+.ad-row-actions a { color: var(--sb-primary-strong); font-size: 13px; font-weight: 600; text-decoration: none; }
 .ad-review-decision { max-width: 260px; }
 .ad-list-controls select,
 .ad-review-form select,
